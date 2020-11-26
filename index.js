@@ -1,5 +1,3 @@
-const axios = require("axios").default;
-const cheerio = require("cheerio");
 const fs = require("fs");
 const say = require("say");
 const colors = require("colors");
@@ -7,8 +5,9 @@ const open = require("open");
 const inquirer = require("inquirer");
 const yaml = require("js-yaml");
 
-const DETECTION_STRING_NOT_AVAILABLE = "Derzeit nicht verfügbar."; //OTHER COUNTRY, NEEDS A CHANGE
-const AVAILABLE_MESSAGE = "Auf Lager.";
+const amazon = require("./site_methods/amazon");
+const saturn = require("./site_methods/saturn");
+const { log } = require("console");
 
 const PRODUCTS_CHOICES_TO_CHECK = yaml.safeLoad(
   fs.readFileSync("products.yaml", "utf8")
@@ -42,6 +41,7 @@ async function main() {
     BROWSER = inq.browser;
 
     // scrap on main run and then by interval
+    console.log(inq.version);
     inq.version.forEach(scrapProduct);
     setInterval(() => {
       inq.version.forEach(scrapProduct);
@@ -52,41 +52,36 @@ async function main() {
 }
 
 async function scrapProduct(uri, i) {
-  const AVAILABLE_SELECTOR = "#availability > span";
-
+  const PRODUCT = PRODUCTS_CHOICES_TO_CHECK.find((p) => p.name == uri);
   try {
-    const product_page = (
-      await axios.get(uri, {
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.67 Safari/537.36",
-        },
-      })
-    ).data;
-
-    const $ = cheerio.load(product_page);
-    const title = $("#productTitle").text().trim();
-    const price = $("#priceblock_ourprice").text().trim();
-    const availableText = $(AVAILABLE_SELECTOR).text().trim();
-
-    console.log(`Checking for ${title} `);
-
-    if (availableText === AVAILABLE_MESSAGE) {
-      console.log(colors.rainbow(`Price at: ${price} `));
-      say.speak(title + AVAILABLE_MESSAGE);
-      open(uri, { app: BROWSER });
-    } else if (availableText === DETECTION_STRING_NOT_AVAILABLE) {
-      console.log(colors.red(availableText));
-    }
+    if (!PRODUCT.uris) PRODUCT.uris = [PRODUCT.uri];
+    PRODUCT.uris.forEach(async (link) => {
+      let parsedInfo = {
+        title: null,
+        price: null,
+        availableText: null,
+        isAvailble: null,
+      };
+      switch (true) {
+        case link.includes("amazon"):
+          parsedInfo = await amazon(link);
+          break;
+        case link.includes("saturn"):
+          parsedInfo = await saturn(link);
+          break;
+      }
+      if (!parsedInfo) {
+        return 1;
+      } else if (parsedInfo.isAvailble) {
+        console.log(colors.rainbow(`Price at: ${parsedInfo.price} `));
+        say.speak(parsedInfo.title + parsedInfo.availableText);
+        open(uri, { app: BROWSER });
+      } else if (parsedInfo.availableText) {
+        console.log(colors.red(parsedInfo.availableText));
+      }
+    });
   } catch (error) {
     console.error(`Error while scraping ${uri}`);
-    if (
-      error.response.data.includes(
-        "To discuss automated access to Amazon data please contact"
-      )
-    ) {
-      console.log(colors.red("Amazon is mad"));
-    }
   } finally {
     console.log(colors.zebra(`------------`));
   }

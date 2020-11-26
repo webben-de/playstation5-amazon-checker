@@ -1,5 +1,10 @@
 products:
   - name: PS5 Drive Edition
     uri: https://www.amazon.de/dp/B08H93ZRK9/
+    uris:
+      - https://www.saturn.de/de/product/_sony-playstation%C2%AE5-digital-edition-2661939.html
+      - https://www.amazon.de/dp/B08H93ZRK9/
   - name: PS5 Digital Edition
     uri: https://www.amazon.de/dp/B08H98GVK8/
+  - name: PS5 Controller
+    uri: https://www.saturn.de/de/product/_sony-dualsense%E2%84%A2-2681392.html
